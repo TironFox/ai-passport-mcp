@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-passport-mcp"
+version = "0.3.0"
+description = "macOS MCP Server & Local Hub for FoloToy AI Passport (ESP32-C3) — voice companion + one-click firmware flashing"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "esptool>=4.7",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+asr = [
+    "faster-whisper>=1.0.0",
+]
+
+[project.scripts]
+passport-mcp = "passport_hub.cli:run_mcp_main"
+passport-hub = "passport_hub.cli:run_hub_main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["passport_hub*"]

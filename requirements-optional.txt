@@ -1,0 +1,5 @@
+# Optional packages for enhanced local offline ASR & BLE provisioning/fallback:
+# Apple Silicon local Whisper ASR (recommended on M1/M2/M3/M4 Macs):
+mlx-whisper>=0.4.0
+# BLE client for Wi-Fi provisioning & offline GATT fallback:
+bleak>=0.22.0
