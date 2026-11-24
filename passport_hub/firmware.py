@@ -328,3 +328,63 @@ def flash_firmware(
         "message": f"Successfully flashed {fw_info['asset_name']} ({fw_info['version']}) to {port}.",
         "output": output_tail,
     }
+
+
+def provision_wifi_ble(
+    ssid: str,
+    password: str = "",
+    hub_host: str | None = None,
+    hub_port: int = 8765,
+    device_name: str = "AI-Passport",
+    timeout_sec: float = 10.0,
+) -> dict[str, Any]:
+    """Write 2.4 GHz Wi-Fi credentials and Mac Hub address to AI Passport over BLE."""
+    import asyncio
+    from passport_hub.ble_protocol import (
+        PASSPORT_BLE_CTRL_CHAR_UUID,
+        build_wifi_provision_payload,
+    )
+    from passport_hub.cli import detect_lan_ip
+
+    ssid = (ssid or "").strip()
+    if not ssid:
+        raise ValueError("ssid is required.")
+
+    host = (hub_host or "").strip() or detect_lan_ip()
+    port = int(hub_port or 8765)
+
+    try:
+        from bleak import BleakClient, BleakScanner  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError("Missing 'bleak'. Install with: pip install bleak") from exc
+
+    async def _run() -> dict[str, Any]:
+        devices = await BleakScanner.discover(timeout=max(3.0, min(30.0, float(timeout_sec))))
+        target = None
+        for d in devices:
+            if d.name and device_name.lower() in d.name.lower():
+                target = d
+                break
+        if target is None:
+            return {
+                "status": "not_found",
+                "scanned_count": len(devices),
+                "message": (
+                    f"BLE device '{device_name}' not found (scanned {len(devices)} devices). "
+                    "On AI Passport, open SETTINGS -> BLE Pairing Mode and press OK (shows BLE ADV), then retry."
+                ),
+            }
+
+        payload = build_wifi_provision_payload(ssid, password, host, port)
+        async with BleakClient(target) as client:
+            await client.write_gatt_char(PASSPORT_BLE_CTRL_CHAR_UUID, payload, response=True)
+        return {
+            "status": "ok",
+            "device_name": target.name,
+            "device_address": target.address,
+            "ssid": ssid,
+            "hub": f"{host}:{port}",
+            "message": f"Wi-Fi credentials for '{ssid}' sent to {target.name}. Device will save to NVS and switch to Wi-Fi.",
+        }
+
+    return asyncio.run(_run())

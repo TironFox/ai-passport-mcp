@@ -186,6 +186,24 @@ TOOLS = [
             "required": ["port"],
         },
     },
+    {
+        "name": "provision_passport_wifi_ble",
+        "description": (
+            "Write 2.4 GHz Wi-Fi SSID/password and Mac Hub IP directly to FoloToy AI Passport over BLE. "
+            "The device must be in SETTINGS -> BLE Pairing Mode (showing BLE ADV)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ssid": {"type": "string", "description": "2.4 GHz Wi-Fi network name (SSID)."},
+                "password": {"type": "string", "default": "", "description": "Wi-Fi password."},
+                "hub_host": {"type": "string", "description": "Optional Mac LAN IP (auto-detected if omitted)."},
+                "hub_port": {"type": "integer", "default": 8765, "description": "Mac Passport Hub HTTP port (default 8765)."},
+                "device_name": {"type": "string", "default": "AI-Passport", "description": "BLE advertising name (default AI-Passport)."},
+            },
+            "required": ["ssid"],
+        },
+    },
 ]
 
 
@@ -217,7 +235,7 @@ def handle_request(req: dict[str, Any]) -> dict[str, Any] | None:
             "result": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "passport-hub-mcp", "version": "0.3.0"},
+                "serverInfo": {"name": "passport-hub-mcp", "version": "0.3.1"},
             },
         }
     if method == "notifications/initialized":
@@ -354,6 +372,28 @@ def handle_request(req: dict[str, Any]) -> dict[str, Any] | None:
                 is_error = res.get("status") == "error"
             except Exception as exc:
                 text = f"Failed to flash firmware: {exc}"
+                is_error = True
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"content": [{"type": "text", "text": text}], "isError": is_error},
+            }
+
+        if name == "provision_passport_wifi_ble":
+            try:
+                from passport_hub.firmware import provision_wifi_ble
+
+                res = provision_wifi_ble(
+                    ssid=str(args.get("ssid") or ""),
+                    password=str(args.get("password") or ""),
+                    hub_host=args.get("hub_host"),
+                    hub_port=int(args.get("hub_port") or 8765),
+                    device_name=str(args.get("device_name") or "AI-Passport"),
+                )
+                text = json.dumps(res, ensure_ascii=False)
+                is_error = res.get("status") != "ok"
+            except Exception as exc:
+                text = f"Failed to provision Wi-Fi over BLE: {exc}"
                 is_error = True
             return {
                 "jsonrpc": "2.0",
